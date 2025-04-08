@@ -1,0 +1,11 @@
+/home/alen/Documents/me/stud/exit_plan/projects/message_queue/rust_grpc_service/target/debug/deps/libprost-3e95816778eff7d9.rmeta: /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/lib.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/error.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/message.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/name.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/types.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/encoding.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/../README.md
+
+/home/alen/Documents/me/stud/exit_plan/projects/message_queue/rust_grpc_service/target/debug/deps/prost-3e95816778eff7d9.d: /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/lib.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/error.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/message.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/name.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/types.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/encoding.rs /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/../README.md
+
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/lib.rs:
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/error.rs:
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/message.rs:
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/name.rs:
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/types.rs:
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/encoding.rs:
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/prost-0.12.6/src/../README.md:

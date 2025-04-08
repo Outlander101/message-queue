@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package logs;
+
+service LogService {
+    rpc ProcessLog(LogMessage) returns (LogAck);
+}
+
+message LogMessage {
+    int32 log_id = 1;
+    string content = 2;
+}
+
+message LogAck {
+    bool success = 1;
+}

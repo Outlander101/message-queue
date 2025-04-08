@@ -1,0 +1,7 @@
+/home/alen/Documents/me/stud/exit_plan/projects/message_queue/rust_grpc_service/target/debug/deps/libwant-07948925a063b284.rmeta: /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/want-0.3.1/src/lib.rs
+
+/home/alen/Documents/me/stud/exit_plan/projects/message_queue/rust_grpc_service/target/debug/deps/libwant-07948925a063b284.rlib: /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/want-0.3.1/src/lib.rs
+
+/home/alen/Documents/me/stud/exit_plan/projects/message_queue/rust_grpc_service/target/debug/deps/want-07948925a063b284.d: /home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/want-0.3.1/src/lib.rs
+
+/home/alen/.cargo/registry/src/index.crates.io-6f17d22bba15001f/want-0.3.1/src/lib.rs:
