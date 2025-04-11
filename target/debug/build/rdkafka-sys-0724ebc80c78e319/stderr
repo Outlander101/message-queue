@@ -1,0 +1,4 @@
+Building and linking librdkafka statically
+Running command: "cp -a librdkafka/. /home/alen/Documents/me/stud/exit_plan/projects/message_queue/target/debug/build/rdkafka-sys-0724ebc80c78e319/out" in dir: .
+Running command: "/home/alen/Documents/me/stud/exit_plan/projects/message_queue/target/debug/build/rdkafka-sys-0724ebc80c78e319/out/configure --disable-ssl --disable-gssapi --disable-curl --disable-zstd --disable-lz4-ext" in dir: /home/alen/Documents/me/stud/exit_plan/projects/message_queue/target/debug/build/rdkafka-sys-0724ebc80c78e319/out
+Running command: "make libs" in dir: /home/alen/Documents/me/stud/exit_plan/projects/message_queue/target/debug/build/rdkafka-sys-0724ebc80c78e319/out

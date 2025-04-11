@@ -36,3 +36,9 @@ services:
     build: ./rust_grpc_service
     ports:
       - "50051:50051"
+
+  rust_kafka_consumer:
+    build: ./rust_kafka_consumer
+    depends_on:
+      - kafka
+    restart: always
