@@ -6,4 +6,4 @@ COPY . .
 RUN apt-get update && apt-get install -y librdkafka-dev protobuf-compiler
 RUN cargo build --release
 
-CMD ["./target/debug/rust_kafka_consumer"]
+CMD ["./target/release/rust_kafka_consumer"]

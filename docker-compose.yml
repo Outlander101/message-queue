@@ -38,7 +38,8 @@ services:
       - "50051:50051"
 
   rust_kafka_consumer:
-    build: ./rust_kafka_consumer
+    build: 
+      context: ./rust_kafka_consumer
     depends_on:
       - kafka
     restart: always
