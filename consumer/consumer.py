@@ -1,8 +1,8 @@
 from kafka import KafkaConsumer
 import json
 import grpc
-import logs_pb2
-import logs_pb2_grpc
+from proto import logs_pb2
+from proto import logs_pb2_grpc
 
 # Set up gRPC channel and stub to invoke Rust service
 channel = grpc.insecure_channel("rust-grpc:50051")

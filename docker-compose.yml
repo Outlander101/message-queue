@@ -13,9 +13,11 @@ services:
     ports:
       - "9092:9092"
     environment:
-      KAFKA_ADVERTISED_HOST_NAME: localhost  # Change to your Docker host IP if needed
+      KAFKA_ADVERTISED_HOST_NAME: kafka  # Change to the Docker host IP if needed
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_CREATE_TOPICS: "log-events:1:1"  # Auto-create your test topic
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_CREATE_TOPICS: "log-events:1:1"  # Auto-create the test topic
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:

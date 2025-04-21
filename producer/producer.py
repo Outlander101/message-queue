@@ -7,10 +7,11 @@ producer = KafkaProducer(
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
-for i in range(10):
+for i in range(30):
     message = {"log_id": i, "content": f"Event number {i}"}
     producer.send('log-events', value=message)
     print(f"Produced: {message}")
     time.sleep(1) # To similate log generation in real-time env.
 
-producer.flush() 
+producer.flush()
+print("Finished sending all messages.")
