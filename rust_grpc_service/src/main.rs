@@ -13,7 +13,7 @@ pub struct SystemLogService;
 impl LogService for SystemLogService {
     async fn process_log(&self, request: Request<LogMessage>) -> Result<Response<LogAck>, Status> {
         println!("Recived log: {:?}", request.into_inner());
-        Ok(Response::new(LogAck { success: true}))
+        Ok(Response::new(LogAck { success: true, message: "success".to_string()}))
     }
 }
 

@@ -9,8 +9,11 @@ service LogService {
 message LogMessage {
     int32 log_id = 1;
     string content = 2;
+    string timestamp = 3; // ISO 8601 format e.g., 2025-04-21T12:00:00Z
+    string level = 4; // Log type, INFO, WARN ...
 }
 
 message LogAck {
     bool success = 1;
+    string message = 2;
 }

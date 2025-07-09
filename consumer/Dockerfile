@@ -9,6 +9,6 @@ COPY ./proto ./proto
 COPY consumer.py .
 
 RUN chmod +x /usr/local/bin/wait_for_kafka_up
-RUN pip install kafka-python grpcio grpcio-tools
+RUN pip install kafka-python grpcio grpcio-tools protobuf
 
 CMD ["wait_for_kafka_up", "kafka", "9092", "python", "-u", "consumer.py"]
