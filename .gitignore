@@ -1,0 +1,11 @@
+target/
+**/target/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs_pb2.py
+logs_pb2_grpc.py
+consumer/proto/logs_pb2.py
+consumer/proto/logs_pb2_grpc.py
+rust_grpc_service/proto/logs_pb2.py
+rust_grpc_service/proto/logs_pb2_grpc.py
