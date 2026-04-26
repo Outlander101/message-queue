@@ -1,75 +1,101 @@
 # Distributed Message Queue System
 
-A modular, containerized message queuing system built with **Python**, **Apache Kafka**, **Rust**, and **gRPC**. 
-This system simulates a real-time logging architecture with producers generating messages, Kafka acting as a message broker, and consumers processing the messages via a Rust-powered gRPC microservice.
-
----
+A containerized real-time message queue pipeline built with Python, Kafka, Rust, and gRPC.
 
 ## Architecture
 
-```plaintext
-[Python Producer] ──> Kafka (log-events topic) ──> [Python Consumer] ──> [Rust gRPC Service]
+```text
+Python Producer -> Kafka topic: log-events -> Python Bridge Consumer -> Rust gRPC Service
+                                            \
+                                             -> Kafka topic: log-events-dlq (on repeated failures)
 ```
-**Python Producer**: Simulates log events and pushes them to Kafka.
 
-**Kafka**: Acts as the central message broker using the log-events topic.
-
-**Python Consumer**: Subscribes to Kafka topic and forwards messages to the gRPC service.
-
-**Rust gRPC Server**: Receives and processes log messages via a typed interface using Protocol Buffers.
+### Reliability model
+- Consumer uses explicit offset commits (`enable_auto_commit=False`).
+- Offsets are committed only after successful gRPC processing or after DLQ handoff.
+- gRPC forwarding uses bounded retries with exponential backoff and timeout.
+- Poison or malformed records are sent to DLQ (`log-events-dlq`).
+- Rust gRPC service implements in-memory idempotency by `log_id`.
 
 ## Stack
+- Python: `kafka-python`, `grpcio`, `grpcio-tools`
+- Rust: `tonic`, `tokio`, `prost`, `rdkafka`
+- Kafka + Zookeeper: `wurstmeister/kafka`, `wurstmeister/zookeeper`
+- Container orchestration: Docker Compose
 
-* Python: kafka-python, grpcio
+## Event schema
+Canonical protobuf is defined in `proto/logs.proto`.
 
-* Rust: tonic, tokio, prost
+`LogMessage` fields:
+- `log_id`
+- `content`
+- `timestamp`
+- `level`
+- `schema_version`
 
-* Kafka & Zookeeper: wurstmeister/kafka and wurstmeister/zookeeper
+## Getting started
+1. Build and start:
+   ```bash
+   docker-compose up --build
+   ```
+2. Follow service logs:
+   ```bash
+   docker-compose logs -f producer consumer rust-grpc
+   ```
+3. Stop stack:
+   ```bash
+   docker-compose down
+   ```
 
-* Docker & Docker Compose
+## Operational runbook
 
-Getting Started
-1. Clone the Repo
+### Health checks
+- Kafka health: port `9092`.
+- Rust gRPC health: port `50051`.
+- Compose uses health-based `depends_on` for startup ordering.
+
+### Debugging quick checks
+- Confirm service status:
   ```bash
-  git clone https://github.com/Outlander101/message-queue.git
-  cd message-queue
+  docker-compose ps
   ```
-2. Build and Launch Services
-  ```bash
-  docker-compose build
-  docker-compose up
-  ```
-  This will start Zookeeper, Kafka, the producer, consumer, and the Rust gRPC microservice.
-
-## Components Explained
-
-1. Python Producer
-  * Generates JSON logs like:
-  ```plaintext
-  {"log_id": 1, "content": "Event number 1"}
-  ```
-  * Sends them to Kafka topic log-events.
-
-2. Kafka (via Docker Compose)
-  * Configured with 1 topic: log-events
-  * Zookeeper used for broker coordination
-
-3. Python Consumer
-  * Listens to log-events topic.
-  * Sends logs to Rust gRPC backend using logs_pb2 and logs_pb2_grpc.
-
-4. Rust gRPC Service
-  * Exposes ProcessLog(LogMessage) endpoint using tonic.
-  * Prints or logs messages for further processing.
-
-## Testing the Pipeline
-1. Observe logs in real-time:
+- Inspect consumer metrics emitted as JSON logs:
+  - `messages_consumed_total`
+  - `messages_forwarded_total`
+  - `messages_failed_total`
+  - `dlq_messages_total`
+- Inspect DLQ flow:
   ```bash
   docker-compose logs -f consumer
-  docker-compose logs -f rust-grpc
   ```
-  2. Modify producer.py to generate different messages or burst traffic.
-  3. Extend consumer.py to batch, filter, or enrich log data before sending to gRPC.
 
-## Contributing
-Pull requests are welcome! For major changes, please open an issue first to discuss your ideas.
+### Failure behavior
+- **gRPC unavailable**: consumer retries with backoff; after max retries, sends to DLQ and commits.
+- **Invalid JSON or malformed payload**: consumer sends record to DLQ and commits.
+- **Duplicate `log_id`**: Rust service returns `duplicate_ignored` and consumer commits.
+
+## Testing
+
+### Python unit tests
+```bash
+python3 -m pip install -r producer/requirements.txt -r consumer/requirements.txt pytest
+python3 -m pytest producer/test_producer.py consumer/test_consumer.py
+```
+
+### Rust tests
+```bash
+cargo test --workspace
+```
+
+### Compose validation
+```bash
+docker-compose config
+```
+
+## CI quality gates
+The CI workflow runs:
+- Python unit tests
+- Rust tests
+- Docker Compose config validation
+
+Rust `fmt`/`clippy` checks are configured in CI and require the corresponding toolchain components.
