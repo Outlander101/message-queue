@@ -1,13 +1,19 @@
+use log::{error, info};
 use rdkafka::{
-    config::ClientConfig, consumer::{Consumer, StreamConsumer}, message::{self, BorrowedMessage}, Message};
+    config::ClientConfig,
+    consumer::{Consumer, StreamConsumer},
+    message::BorrowedMessage,
+    Message,
+};
 use serde::Deserialize;
-use std::time::Duration;
-use log::{info, error};
 
 #[derive(Debug, Deserialize)]
 struct LogMessage {
     log_id: i32,
     content: String,
+    timestamp: Option<String>,
+    level: Option<String>,
+    schema_version: Option<String>,
 }
 
 #[tokio::main]
@@ -25,8 +31,7 @@ async fn main() {
         .subscribe(&["log-events"])
         .expect("Failed to subscribe to log events.");
 
-    println!("Subscribed to log-events. Starting poll loop");
-    info!("Rust Kafka Consumer service has been started and is listening...");
+    info!("{{\"event\":\"rust_kafka_consumer_started\",\"topic\":\"log-events\"}}");
 
     loop {
         match consumer.recv().await {
@@ -39,10 +44,17 @@ async fn main() {
 fn handle_message(msg: BorrowedMessage) {
     if let Some(Ok(payload)) = msg.payload_view() {
         match serde_json::from_str::<LogMessage>(payload) {
-            Ok(log_message) => println!("Consumed log: {:?}", log_message),
-            Err(e) => eprintln!("Failed to parse JSON: {}", e),
+            Ok(log_message) => info!(
+                "{{\"event\":\"kafka_log_consumed\",\"log_id\":{},\"content\":\"{}\",\"timestamp\":\"{}\",\"level\":\"{}\",\"schema_version\":\"{}\"}}",
+                log_message.log_id,
+                log_message.content,
+                log_message.timestamp.unwrap_or_default(),
+                log_message.level.unwrap_or_else(|| "INFO".to_string()),
+                log_message.schema_version.unwrap_or_else(|| "1.0.0".to_string())
+            ),
+            Err(e) => error!("{{\"event\":\"kafka_log_parse_failed\",\"error\":\"{}\"}}", e),
         }
     } else {
-        eprintln!("Empty/Unreadable Kafka log message");
+        error!("{{\"event\":\"kafka_log_empty_or_unreadable\"}}");
     }
 }
