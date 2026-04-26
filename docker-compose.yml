@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 
 services:
   zookeeper:
@@ -6,6 +6,11 @@ services:
     container_name: zookeeper
     ports:
       - "2181:2181"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo ruok | nc -w 2 localhost 2181 | grep imok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   kafka:
     image: wurstmeister/kafka
@@ -17,31 +22,56 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_CREATE_TOPICS: "log-events:1:1"  # Auto-create the test topic
+      KAFKA_CREATE_TOPICS: "log-events:1:1,log-events-dlq:1:1"  # Auto-create topics
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
   
   producer:
-    build: ./producer
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
 
   consumer:
-    build: ./consumer
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile
     depends_on:
-      - kafka
-      - rust-grpc
+      kafka:
+        condition: service_healthy
+      rust-grpc:
+        condition: service_healthy
+    restart: unless-stopped
 
   rust-grpc:
-    build: ./rust_grpc_service
+    build:
+      context: .
+      dockerfile: rust_grpc_service/Dockerfile
     ports:
       - "50051:50051"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 50051"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
 
   rust_kafka_consumer:
     build: 
       context: ./rust_kafka_consumer
     depends_on:
-      - kafka
-    restart: always
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
