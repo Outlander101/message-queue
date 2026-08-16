@@ -20,18 +20,22 @@ struct LogMessage {
 async fn main() {
     env_logger::init();
 
+    let bootstrap_servers = std::env::var("KAFKA_BOOTSTRAP_SERVERS").unwrap_or_else(|_| "kafka:9092".to_string());
+    let group_id = std::env::var("KAFKA_GROUP_ID").unwrap_or_else(|_| "rust_log_consumer".to_string());
+    let topic = std::env::var("KAFKA_TOPIC").unwrap_or_else(|_| "log-events".to_string());
+
     let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", "kafka:9092")
-        .set("group.id", "rust_log_consumer")
+        .set("bootstrap.servers", &bootstrap_servers)
+        .set("group.id", &group_id)
         .set("auto.offset.reset", "earliest")
         .create()
         .expect("Consumer creation failed with ClientConfig.");
 
     consumer
-        .subscribe(&["log-events"])
+        .subscribe(&[&topic])
         .expect("Failed to subscribe to log events.");
 
-    info!("{{\"event\":\"rust_kafka_consumer_started\",\"topic\":\"log-events\"}}");
+    info!("{{\"event\":\"rust_kafka_consumer_started\",\"topic\":\"{}\"}}", topic);
 
     loop {
         match consumer.recv().await {

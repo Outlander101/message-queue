@@ -51,3 +51,30 @@ def test_send_to_dlq_serializes_context():
     assert value["error"] == "bad_payload"
     assert value["received_topic"] == "log-events"
     assert consumer.metrics["dlq_messages_total"] == before + 1
+
+
+class DummyKafkaConsumer:
+    def __init__(self):
+        self.committed = None
+
+    def commit(self, offsets):
+        self.committed = offsets
+
+
+def test_commit_message_explicit_offsets():
+    mock_consumer = DummyKafkaConsumer()
+    msg = DummyMessage()
+    msg.topic = "test-topic"
+    msg.partition = 2
+    msg.offset = 42
+
+    consumer.commit_message(mock_consumer, msg)
+
+    assert mock_consumer.committed is not None
+    # Verify we committed the exact topic/partition and offset+1
+    committed_tp = list(mock_consumer.committed.keys())[0]
+    committed_meta = mock_consumer.committed[committed_tp]
+    
+    assert committed_tp.topic == "test-topic"
+    assert committed_tp.partition == 2
+    assert committed_meta.offset == 43

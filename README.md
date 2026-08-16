@@ -76,13 +76,42 @@ Canonical protobuf is defined in `proto/logs.proto`.
 
 ## Testing
 
-### Python unit tests
+### Real-World Execution & Integration Testing
+To test the End-to-End (E2E) flow in a production-like environment:
+
+1. **Start the environment in the background:**
+   ```bash
+   docker-compose up --build -d
+   ```
+2. **Follow the logs to verify E2E flow:**
+   ```bash
+   docker-compose logs -f producer consumer rust-grpc
+   ```
+3. **Expected Results:**
+   - The producer is configured to send 30 messages.
+   - You should see `message_produced` logs from the producer.
+   - You should see exactly 30 `message_forwarded` logs from the consumer.
+   - You should see exactly 30 `log_processed` logs from the Rust gRPC service.
+   - `dlq_messages_total` should remain at 0 in consumer metrics.
+
+4. **Tear down and Clean up:**
+   To stop the stack, remove containers, and delete the associated volumes and images:
+   ```bash
+   docker-compose down -v --rmi all
+   ```
+   If you want to forcefully prune all unused dangling images on your system:
+   ```bash
+   docker image prune -f
+   ```
+
+### Python Unit Tests
+The unit tests use `pytest` and stub out network interactions.
 ```bash
 python3 -m pip install -r producer/requirements.txt -r consumer/requirements.txt pytest
 python3 -m pytest producer/test_producer.py consumer/test_consumer.py
 ```
 
-### Rust tests
+### Rust Tests
 ```bash
 cargo test --workspace
 ```

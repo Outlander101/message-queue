@@ -39,6 +39,10 @@ services:
     build:
       context: .
       dockerfile: producer/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=log-events
+      - MESSAGE_COUNT=30
     depends_on:
       kafka:
         condition: service_healthy
@@ -48,6 +52,11 @@ services:
     build:
       context: .
       dockerfile: consumer/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=log-events
+      - DLQ_TOPIC=log-events-dlq
+      - GRPC_TARGET=rust-grpc:50051
     depends_on:
       kafka:
         condition: service_healthy
@@ -59,6 +68,9 @@ services:
     build:
       context: .
       dockerfile: rust_grpc_service/Dockerfile
+    environment:
+      - GRPC_BIND_ADDRESS=[::]:50051
+      - DEDUP_CACHE_SIZE=100000
     ports:
       - "50051:50051"
     healthcheck:
@@ -70,7 +82,8 @@ services:
 
   rust_kafka_consumer:
     build: 
-      context: ./rust_kafka_consumer
+      context: .
+      dockerfile: rust_kafka_consumer/Dockerfile
     depends_on:
       kafka:
         condition: service_healthy

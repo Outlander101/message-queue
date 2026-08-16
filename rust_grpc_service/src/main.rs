@@ -1,6 +1,6 @@
-use std::collections::HashSet;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use lru::LruCache;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex};
 use tonic::{transport::Server, Request, Response, Status};
 
 use logs::log_service_server::{LogService, LogServiceServer};
@@ -10,15 +10,21 @@ pub mod logs {
     tonic::include_proto!("logs");
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone)]
 pub struct SystemLogService {
-    processed_ids: Arc<RwLock<HashSet<i32>>>,
+    processed_ids: Arc<Mutex<LruCache<i32, ()>>>,
+}
+
+impl Default for SystemLogService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SystemLogService {
     pub fn new() -> Self {
         Self {
-            processed_ids: Arc::new(RwLock::new(HashSet::new())),
+            processed_ids: Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100_000).unwrap()))),
         }
     }
 }
@@ -35,8 +41,8 @@ impl LogService for SystemLogService {
             return Err(Status::invalid_argument("content cannot be empty"));
         }
 
-        let mut processed_ids = self.processed_ids.write().await;
-        if !processed_ids.insert(payload.log_id) {
+        let mut processed_ids = self.processed_ids.lock().unwrap();
+        if processed_ids.put(payload.log_id, ()).is_some() {
             println!(
                 "{{\"event\":\"duplicate_log_ignored\",\"log_id\":{},\"level\":\"{}\"}}",
                 payload.log_id, payload.level
@@ -61,8 +67,15 @@ impl LogService for SystemLogService {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::]:50051".parse()?;
-    let sls = SystemLogService::new();
+    let addr_str = std::env::var("GRPC_BIND_ADDRESS").unwrap_or_else(|_| "[::]:50051".to_string());
+    let addr = addr_str.parse()?;
+    
+    let cache_size_str = std::env::var("DEDUP_CACHE_SIZE").unwrap_or_else(|_| "100000".to_string());
+    let cache_size: usize = cache_size_str.parse().unwrap_or(100_000);
+    
+    let sls = SystemLogService {
+        processed_ids: Arc::new(Mutex::new(lru::LruCache::new(std::num::NonZeroUsize::new(cache_size).unwrap()))),
+    };
     println!("{{\"event\":\"grpc_server_starting\",\"address\":\"{}\"}}", addr);
 
     Server::builder()

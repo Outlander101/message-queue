@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y netcat-openbsd
 
-COPY consumer/wait_for_kafka_up.sh /usr/local/bin/wait_for_kafka_up
+COPY scripts/wait_for_kafka_up.sh /usr/local/bin/wait_for_kafka_up
 COPY proto/logs.proto ./proto/logs.proto
 COPY consumer/consumer.py .
 COPY consumer/requirements.txt .

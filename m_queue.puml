@@ -1,0 +1,44 @@
+@startuml
+autonumber
+actor "Log Source" as source
+participant "Python Producer" as prod
+queue "Kafka (log-events)" as kafka
+queue "Kafka (log-events-dlq)" as dlq
+participant "Python Consumer" as cons
+participant "Rust gRPC Service" as grpc
+participant "Rust Consumer" as rcons
+
+source -> prod : Trigger log generation
+prod -> kafka : Produce JSON Log Message
+kafka --> prod : Ack (Delivery Report)
+
+== Processing Flow ==
+kafka <- cons : Poll messages
+kafka --> cons : Batch of JSON messages
+
+loop For each message
+    cons -> cons : Parse JSON & Validate
+    alt Invalid JSON/Payload
+        cons -> dlq : Send to DLQ
+        cons -> kafka : Commit Offset
+    else Valid Payload
+        cons -> grpc : ProcessLog(LogMessage protobuf)
+        alt Success
+            grpc -> grpc : Check Deduplication Cache
+            grpc --> cons : LogAck (success)
+            cons -> kafka : Commit Offset
+        else Failure (Timeout/Unavailable)
+            cons -> cons : Retry with Exponential Backoff
+            alt Retries Exhausted
+                cons -> dlq : Send to DLQ
+                cons -> kafka : Commit Offset
+            end
+        end
+    end
+end
+
+== Direct Rust Consumption (Parallel) ==
+kafka <- rcons : Poll messages
+kafka --> rcons : JSON Message
+rcons -> rcons : Parse & Process
+@enduml

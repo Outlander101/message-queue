@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 
 import grpc
-from kafka import KafkaConsumer, KafkaProducer
+from kafka import KafkaConsumer, KafkaProducer, TopicPartition, OffsetAndMetadata
 from kafka.errors import KafkaError
 
 try:
@@ -16,15 +16,17 @@ except ModuleNotFoundError:  # Allows unit tests without generated stubs.
     logs_pb2 = None
     logs_pb2_grpc = None
 
-KAFKA_BOOTSTRAP_SERVERS = ["kafka:9092"]
-KAFKA_TOPIC = "log-events"
-DLQ_TOPIC = "log-events-dlq"
-KAFKA_GROUP_ID = "log-processors"
-GRPC_TARGET = "rust-grpc:50051"
-GRPC_TIMEOUT_SEC = 3
-MAX_RETRIES = 5
-BASE_BACKOFF_SEC = 0.5
-MAX_BACKOFF_SEC = 8
+import os
+
+KAFKA_BOOTSTRAP_SERVERS = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092").split(",")
+KAFKA_TOPIC = os.environ.get("KAFKA_TOPIC", "log-events")
+DLQ_TOPIC = os.environ.get("DLQ_TOPIC", "log-events-dlq")
+KAFKA_GROUP_ID = os.environ.get("KAFKA_GROUP_ID", "log-processors")
+GRPC_TARGET = os.environ.get("GRPC_TARGET", "rust-grpc:50051")
+GRPC_TIMEOUT_SEC = int(os.environ.get("GRPC_TIMEOUT_SEC", "3"))
+MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "5"))
+BASE_BACKOFF_SEC = float(os.environ.get("BASE_BACKOFF_SEC", "0.5"))
+MAX_BACKOFF_SEC = float(os.environ.get("MAX_BACKOFF_SEC", "8.0"))
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("kafka-grpc-consumer")
@@ -80,6 +82,11 @@ def send_to_dlq(producer, message, error_message):
     )
 
 
+def commit_message(consumer, message):
+    tp = TopicPartition(message.topic, message.partition)
+    consumer.commit({tp: OffsetAndMetadata(message.offset + 1, "", None)})
+
+
 def main():
     if logs_pb2 is None or logs_pb2_grpc is None:
         raise RuntimeError("gRPC protobuf stubs are missing. Regenerate with grpc_tools.protoc.")
@@ -117,6 +124,12 @@ def main():
                         break
 
                     metrics["messages_consumed_total"] += 1
+
+                    if message.value is None:
+                        log_event("skipping_tombstone", topic=message.topic, partition=message.partition, offset=message.offset)
+                        commit_message(consumer, message)
+                        continue
+
                     log_id = 0
 
                     try:
@@ -124,13 +137,13 @@ def main():
                     except (UnicodeDecodeError, json.JSONDecodeError) as err:
                         metrics["messages_failed_total"] += 1
                         send_to_dlq(producer, message, f"invalid_json:{err}")
-                        consumer.commit()
+                        commit_message(consumer, message)
                         continue
 
                     if not isinstance(log, dict):
                         metrics["messages_failed_total"] += 1
                         send_to_dlq(producer, message, "invalid_payload_type")
-                        consumer.commit()
+                        commit_message(consumer, message)
                         continue
 
                     log_id = int(log.get("log_id", 0))
@@ -152,7 +165,7 @@ def main():
                             if not response.success:
                                 raise RuntimeError(response.message or "grpc_ack_failed")
 
-                            consumer.commit()
+                            commit_message(consumer, message)
                             metrics["messages_forwarded_total"] += 1
                             log_event(
                                 "message_forwarded",
@@ -200,7 +213,7 @@ def main():
 
                     if last_error is not None:
                         send_to_dlq(producer, message, last_error)
-                        consumer.commit()
+                        commit_message(consumer, message)
     finally:
         log_event("consumer_stopping", **metrics)
         consumer.close()
