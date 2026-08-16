@@ -10,3 +10,4 @@ consumer/proto/logs_pb2_grpc.py
 rust_grpc_service/proto/logs_pb2.py
 rust_grpc_service/proto/logs_pb2_grpc.py
 m_queue*.md
+.internals/

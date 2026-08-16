@@ -76,8 +76,8 @@ def main():
             
         message = build_message(i)
         future = producer.send(TOPIC, key=message["event_id"].encode("utf-8"), value=message)
-        future.add_callback(on_send_success, message["log_id"])
-        future.add_errback(on_send_error, message["log_id"])
+        future.add_callback(lambda metadata, l_id=message["log_id"]: on_send_success(metadata, l_id))
+        future.add_errback(lambda err, l_id=message["log_id"]: on_send_error(err, l_id))
         
         # Sleep in small increments to respond to signals faster
         sleep_elapsed = 0
