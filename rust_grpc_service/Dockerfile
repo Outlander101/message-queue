@@ -1,4 +1,4 @@
-FROM rust:1.85 as builder
+FROM rust:latest as builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y protobuf-compiler
 COPY Cargo.toml Cargo.toml

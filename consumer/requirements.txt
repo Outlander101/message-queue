@@ -1,4 +1,0 @@
-grpcio==1.71.0
-grpcio-tools==1.71.0
-kafka-python==2.2.15
-protobuf==5.29.4

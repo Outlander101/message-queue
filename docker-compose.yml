@@ -48,20 +48,16 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  consumer:
-    build:
-      context: .
-      dockerfile: consumer/Dockerfile
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - KAFKA_TOPIC=log-events
-      - DLQ_TOPIC=log-events-dlq
-      - GRPC_TARGET=rust-grpc:50051
-    depends_on:
-      kafka:
-        condition: service_healthy
-      rust-grpc:
-        condition: service_healthy
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   rust-grpc:
@@ -70,7 +66,10 @@ services:
       dockerfile: rust_grpc_service/Dockerfile
     environment:
       - GRPC_BIND_ADDRESS=[::]:50051
-      - DEDUP_CACHE_SIZE=100000
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
     ports:
       - "50051:50051"
     healthcheck:
@@ -84,7 +83,13 @@ services:
     build: 
       context: .
       dockerfile: rust_kafka_consumer/Dockerfile
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_TOPIC=log-events
+      - REDIS_URL=redis://redis:6379
     depends_on:
       kafka:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped

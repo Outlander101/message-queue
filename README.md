@@ -1,26 +1,25 @@
 # Distributed Message Queue System
 
-A containerized real-time message queue pipeline built with Python, Kafka, Rust, and gRPC.
+A containerized real-time message queue pipeline built with Python, Kafka, Redis, Rust, and gRPC.
 
 ## Architecture
 
 ```text
-Python Producer -> Kafka topic: log-events -> Python Bridge Consumer -> Rust gRPC Service
-                                            \
-                                             -> Kafka topic: log-events-dlq (on repeated failures)
+Python Producer -> Kafka topic: log-events -> Rust Kafka Consumer
+                                             \
+                                              -> Kafka topic: log-events-dlq (on parse/processing failures)
 ```
 
 ### Reliability model
-- Consumer uses explicit offset commits (`enable_auto_commit=False`).
-- Offsets are committed only after successful gRPC processing or after DLQ handoff.
-- gRPC forwarding uses bounded retries with exponential backoff and timeout.
+- Consumer uses explicit offset commits (`enable.auto.commit=false`).
+- Offsets are committed only after successful processing or after DLQ handoff.
 - Poison or malformed records are sent to DLQ (`log-events-dlq`).
-- Rust gRPC service implements in-memory idempotency by `log_id`.
+- Rust Kafka Consumer and Rust gRPC service implement distributed idempotency by `log_id` using Redis (`SETNX` with TTL).
 
 ## Stack
-- Python: `kafka-python`, `grpcio`, `grpcio-tools`
-- Rust: `tonic`, `tokio`, `prost`, `rdkafka`
-- Kafka + Zookeeper: `wurstmeister/kafka`, `wurstmeister/zookeeper`
+- Python: `kafka-python`
+- Rust: `tonic`, `tokio`, `prost`, `rdkafka`, `redis-rs`
+- Backing Stores: `wurstmeister/kafka`, `wurstmeister/zookeeper`, `redis:7-alpine`
 - Container orchestration: Docker Compose
 
 ## Event schema
@@ -40,7 +39,7 @@ Canonical protobuf is defined in `proto/logs.proto`.
    ```
 2. Follow service logs:
    ```bash
-   docker-compose logs -f producer consumer rust-grpc
+   docker-compose logs -f producer rust_kafka_consumer rust-grpc
    ```
 3. Stop stack:
    ```bash
@@ -52,6 +51,7 @@ Canonical protobuf is defined in `proto/logs.proto`.
 ### Health checks
 - Kafka health: port `9092`.
 - Rust gRPC health: port `50051`.
+- Redis health: port `6379`.
 - Compose uses health-based `depends_on` for startup ordering.
 
 ### Debugging quick checks
@@ -59,20 +59,14 @@ Canonical protobuf is defined in `proto/logs.proto`.
   ```bash
   docker-compose ps
   ```
-- Inspect consumer metrics emitted as JSON logs:
-  - `messages_consumed_total`
-  - `messages_forwarded_total`
-  - `messages_failed_total`
-  - `dlq_messages_total`
-- Inspect DLQ flow:
+- Inspect consumer logic:
   ```bash
-  docker-compose logs -f consumer
+  docker-compose logs -f rust_kafka_consumer
   ```
 
 ### Failure behavior
-- **gRPC unavailable**: consumer retries with backoff; after max retries, sends to DLQ and commits.
 - **Invalid JSON or malformed payload**: consumer sends record to DLQ and commits.
-- **Duplicate `log_id`**: Rust service returns `duplicate_ignored` and consumer commits.
+- **Duplicate `log_id`**: Rust service returns `duplicate_ignored` or logs ignored event, and consumer commits.
 
 ## Testing
 
@@ -85,14 +79,12 @@ To test the End-to-End (E2E) flow in a production-like environment:
    ```
 2. **Follow the logs to verify E2E flow:**
    ```bash
-   docker-compose logs -f producer consumer rust-grpc
+   docker-compose logs -f producer rust_kafka_consumer rust-grpc
    ```
 3. **Expected Results:**
    - The producer is configured to send 30 messages.
    - You should see `message_produced` logs from the producer.
-   - You should see exactly 30 `message_forwarded` logs from the consumer.
-   - You should see exactly 30 `log_processed` logs from the Rust gRPC service.
-   - `dlq_messages_total` should remain at 0 in consumer metrics.
+   - You should see exactly 30 `log_processed` logs from the Rust Kafka Consumer.
 
 4. **Tear down and Clean up:**
    To stop the stack, remove containers, and delete the associated volumes and images:
@@ -105,10 +97,9 @@ To test the End-to-End (E2E) flow in a production-like environment:
    ```
 
 ### Python Unit Tests
-The unit tests use `pytest` and stub out network interactions.
 ```bash
-python3 -m pip install -r producer/requirements.txt -r consumer/requirements.txt pytest
-python3 -m pytest producer/test_producer.py consumer/test_consumer.py
+python3 -m pip install -r producer/requirements.txt pytest
+python3 -m pytest producer/test_producer.py
 ```
 
 ### Rust Tests
@@ -126,5 +117,3 @@ The CI workflow runs:
 - Python unit tests
 - Rust tests
 - Docker Compose config validation
-
-Rust `fmt`/`clippy` checks are configured in CI and require the corresponding toolchain components.

@@ -1,6 +1,5 @@
-use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::sync::{Arc, Mutex};
+use redis::AsyncCommands;
+use std::sync::Arc;
 use tonic::{transport::Server, Request, Response, Status};
 
 use logs::log_service_server::{LogService, LogServiceServer};
@@ -10,22 +9,17 @@ pub mod logs {
     tonic::include_proto!("logs");
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SystemLogService {
-    processed_ids: Arc<Mutex<LruCache<i32, ()>>>,
-}
-
-impl Default for SystemLogService {
-    fn default() -> Self {
-        Self::new()
-    }
+    redis_client: redis::Client,
 }
 
 impl SystemLogService {
-    pub fn new() -> Self {
-        Self {
-            processed_ids: Arc::new(Mutex::new(LruCache::new(NonZeroUsize::new(100_000).unwrap()))),
-        }
+    pub fn new(redis_url: &str) -> Result<Self, redis::RedisError> {
+        let client = redis::Client::open(redis_url)?;
+        Ok(Self {
+            redis_client: client,
+        })
     }
 }
 
@@ -41,8 +35,26 @@ impl LogService for SystemLogService {
             return Err(Status::invalid_argument("content cannot be empty"));
         }
 
-        let mut processed_ids = self.processed_ids.lock().unwrap();
-        if processed_ids.put(payload.log_id, ()).is_some() {
+        let mut con = self
+            .redis_client
+            .get_multiplexed_tokio_connection()
+            .await
+            .map_err(|e| Status::internal(format!("Redis connection error: {}", e)))?;
+
+        let key = format!("log_id:{}", payload.log_id);
+        
+        // Use SET with NX (Only set if not exists) and EX (Expire in 24 hours)
+        let is_new: bool = redis::cmd("SET")
+            .arg(&key)
+            .arg("1")
+            .arg("EX")
+            .arg(86400)
+            .arg("NX")
+            .query_async(&mut con)
+            .await
+            .map_err(|e| Status::internal(format!("Redis query error: {}", e)))?;
+
+        if !is_new {
             println!(
                 "{{\"event\":\"duplicate_log_ignored\",\"log_id\":{},\"level\":\"{}\"}}",
                 payload.log_id, payload.level
@@ -52,7 +64,6 @@ impl LogService for SystemLogService {
                 message: "duplicate_ignored".to_string(),
             }));
         }
-        drop(processed_ids);
 
         println!(
             "{{\"event\":\"log_processed\",\"log_id\":{},\"level\":\"{}\",\"content\":\"{}\",\"timestamp\":\"{}\"}}",
@@ -70,17 +81,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr_str = std::env::var("GRPC_BIND_ADDRESS").unwrap_or_else(|_| "[::]:50051".to_string());
     let addr = addr_str.parse()?;
     
-    let cache_size_str = std::env::var("DEDUP_CACHE_SIZE").unwrap_or_else(|_| "100000".to_string());
-    let cache_size: usize = cache_size_str.parse().unwrap_or(100_000);
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
     
-    let sls = SystemLogService {
-        processed_ids: Arc::new(Mutex::new(lru::LruCache::new(std::num::NonZeroUsize::new(cache_size).unwrap()))),
-    };
+    let sls = SystemLogService::new(&redis_url)?;
     println!("{{\"event\":\"grpc_server_starting\",\"address\":\"{}\"}}", addr);
+
+    let shutdown = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for ctrl_c signal");
+        println!("{{\"event\":\"grpc_server_shutting_down\"}}");
+    };
 
     Server::builder()
         .add_service(LogServiceServer::new(sls))
-        .serve(addr)
+        .serve_with_shutdown(addr, shutdown)
         .await?;
 
     Ok(())
@@ -92,7 +107,7 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_invalid_log_id() {
-        let service = SystemLogService::new();
+        let service = SystemLogService::new("redis://127.0.0.1:6379").unwrap();
         let req = Request::new(LogMessage {
             log_id: 0,
             content: "test".to_string(),
@@ -106,8 +121,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "Requires local Redis instance"]
     async fn deduplicates_log_ids() {
-        let service = SystemLogService::new();
+        let service = SystemLogService::new("redis://127.0.0.1:6379").unwrap();
         let first = Request::new(LogMessage {
             log_id: 8,
             content: "first".to_string(),
